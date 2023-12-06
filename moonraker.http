@@ -1,0 +1,9 @@
+GET http://192.168.13.15:4408/printer/objects/query?heater_bed&extruder&virtual_sdcard&print_stats&current_file&gcode_move
+
+###
+
+GET http://192.168.13.15:4408/printer/objects/list
+
+###
+
+GET http://192.168.13.15:4408/printer/objects/query?print_stats
