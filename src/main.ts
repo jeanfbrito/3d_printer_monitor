@@ -3,8 +3,7 @@ import axios from "axios";
 let tray: Tray | null;
 let window: BrowserWindow | null = null;
 
-const streamUrl = "http://192.168.13.15:8080/?action=stream";
-const snapshotUrl = "http://192.168.13.15:8080/?action=snapshot";
+import "moment-duration-format";
 
 interface PrinterData {
   cameraUrl: string;
@@ -31,6 +30,9 @@ const printer: PrinterData = {
   current_file: {},
   gcode_move: {},
 };
+
+const streamUrl = `${printer.cameraUrl}/?action=stream`;
+const snapshotUrl = `${printer.cameraUrl}/?action=snapshot`;
 
 app.whenReady().then(() => {
   tray = new Tray(nativeImage.createEmpty());
