@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Tray, nativeImage, shell } from "electron";
 import axios from "axios";
+import moment from "moment";
 let tray: Tray | null;
 let window: BrowserWindow | null = null;
 
@@ -71,13 +72,15 @@ app.whenReady().then(() => {
     switch (printer.state) {
       case "printing":
         tray?.setTitle(
-          `Printing [${printer.print_estimates.progress}%] L:${printer.actualLayer}/${printer.virtual_sdcard.layer_count} `
+          `Printing [${printer.print_estimates.progress}%] Left:${moment
+            .duration(printer.print_estimates.leftTime, "seconds")
+            .humanize()} ETA: ${moment
+            .unix(printer.print_estimates.eta)
+            .format("HH:mm")}`
         );
         break;
       case "paused":
-        tray?.setTitle(
-          `Paused ${printer.actualLayer}/${printer.virtual_sdcard.layer_count} ${printer.print_estimates.progress}%`
-        );
+        tray?.setTitle(`Paused at ${printer.print_estimates.progress}%`);
         break;
       case "standby":
         tray?.setTitle(`Standby ${getTemperaturesString()}`);
@@ -170,26 +173,57 @@ app.whenReady().then(() => {
     const progress = printer.virtual_sdcard.progress
       ? printer.virtual_sdcard.progress
       : 0;
-    const timeNow = Math.floor(Date.now() / 1000);
-    const duration = printer.print_stats.print_duration
-      ? printer.print_stats.print_duration
-      : 0;
+    const endTime = Math.floor(Date.now() / 1000);
+    const duration =
+      "print_stats" in printer && "print_duration" in printer.print_stats
+        ? printer.print_stats.print_duration
+        : 0;
 
-    let fileEndTime = 0;
-    let fileTotalDuration = 0;
+    const multiplier = printer.gcode_move.speed_factor || 1;
+
+    let file = 0;
     let fileLeft = 0;
-
+    let fileEndTime = 0;
     if (progress > 0 && duration > 0) {
-      fileTotalDuration = duration / progress;
-      fileLeft = fileTotalDuration - duration;
-      fileEndTime = timeNow + fileLeft;
+      file = duration / progress;
+      fileLeft = (file - duration) / multiplier;
+      fileEndTime = endTime + fileLeft;
     }
+
+    let actualTotal = 0;
+    let actualLeft = 0;
+    let actualEndTime = 0;
+    if (
+      "current_file" in printer &&
+      "history" in printer.current_file &&
+      printer.current_file.history.status === "completed"
+    ) {
+      actualTotal = printer.current_file.history.total_duration;
+      actualLeft = (actualTotal - duration) / multiplier;
+      actualEndTime = endTime + actualLeft;
+    }
+
+    let slicer = 0;
+    let slicerLeft = 0;
+    let slicerEndTime = 0;
+    if ("current_file" in printer && "estimated_time" in printer.current_file) {
+      slicer = printer.current_file.estimated_time;
+      slicerLeft = (slicer - duration) / multiplier;
+      slicerEndTime = endTime + slicerLeft;
+    }
+
+    let eta = fileEndTime;
+    if (slicerEndTime > 0) eta = slicerEndTime;
+    if (actualEndTime > 0) eta = actualEndTime;
 
     return {
       progress: Math.floor(progress * 100),
-      fileEndTime,
-      fileTotalDuration,
-      fileLeft,
+      duration,
+      slicer: slicerLeft,
+      file: fileLeft,
+      actual: actualLeft,
+      leftTime: Math.min(slicerLeft, fileLeft),
+      eta,
     };
   };
 
